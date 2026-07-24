@@ -1,7 +1,6 @@
 # DOIO KB16-01 → GitHub Copilot CLI Command Center
 
-Turn a **DOIO KB16-01** macro pad into a control surface for **GitHub Copilot CLI**
-(and **Agency CLI**, which wraps Copilot CLI) on **macOS + iTerm2**, complete with a
+Turn a **DOIO KB16-01** macro pad into a control surface for **GitHub Copilot CLI** on **macOS + iTerm2**, complete with a
 **Codex-Micro-style live status light** in the macOS menu bar.
 
 No custom firmware required — everything runs through **VIA** + **Hammerspoon** +
@@ -18,7 +17,6 @@ No custom firmware required — everything runs through **VIA** + **Hammerspoon*
 - [Encoders](#encoders)
 - [Live status light](#live-status-light)
 - [Installation](#installation)
-- [Agency CLI](#agency-cli)
 - [Troubleshooting](#troubleshooting)
 - [Repo layout](#repo-layout)
 - [Design decisions & safety](#design-decisions--safety)
@@ -32,7 +30,7 @@ No custom firmware required — everything runs through **VIA** + **Hammerspoon*
 - 3 rotary encoders scroll, navigate tabs, and control volume.
 - A menu-bar dot mirrors Copilot's live state (idle / thinking / running / done / error),
   inspired by the Work Louder **Codex Micro**.
-- Works identically whether you launch `copilot` directly or via `agency copilot`.
+- Works identically whether you launch `copilot` directly.
 
 ---
 
@@ -199,19 +197,6 @@ Then choose **Reload Config** from the Hammerspoon menu.
 echo running > ~/.copilot-kb16-status   # dot turns yellow
 echo idle    > ~/.copilot-kb16-status   # dot turns grey
 copilot                                 # send a prompt, watch the dot cycle
-```
-
----
-
-## Agency CLI
-
-**Agency** (`agency`, Microsoft Agent Platform) is a **wrapper around GitHub
-Copilot CLI** — `agency copilot` / `agency cp` launches the same Copilot CLI
-using the same `~/.copilot` home. It therefore **inherits the hooks
-automatically**; the status light works with no extra setup.
-
-```bash
-agency copilot   # menu-bar dot behaves exactly like plain `copilot`
 ```
 
 ---
