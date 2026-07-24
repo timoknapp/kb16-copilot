@@ -1,0 +1,9 @@
+# macOS
+.DS_Store
+
+# Local status file (runtime state, not source)
+.copilot-kb16-status
+
+# Editor
+*.swp
+.vscode/

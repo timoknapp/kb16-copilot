@@ -1,0 +1,6 @@
+{
+    "keyboard": "doio/kb16/rev1",
+    "keymap": "kb16_status_via",
+    "layout": "LAYOUT",
+    "notes": "VIA + Raw HID status LEDs. Raw HID protocol: report [0x01, status] where status = 0 idle, 1 thinking, 2 running, 3 done, 4 error."
+}

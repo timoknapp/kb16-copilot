@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      { "type": "command", "bash": "~/.copilot/hooks/copilot-status.sh idle", "timeoutSec": 5 }
+    ],
+    "sessionEnd": [
+      { "type": "command", "bash": "~/.copilot/hooks/copilot-status.sh idle", "timeoutSec": 5 }
+    ],
+    "userPromptSubmitted": [
+      { "type": "command", "bash": "~/.copilot/hooks/copilot-status.sh thinking", "timeoutSec": 5 }
+    ],
+    "preToolUse": [
+      { "type": "command", "bash": "~/.copilot/hooks/copilot-status.sh running", "timeoutSec": 5 }
+    ],
+    "postToolUse": [
+      { "type": "command", "bash": "~/.copilot/hooks/copilot-status.sh thinking", "timeoutSec": 5 }
+    ],
+    "agentStop": [
+      { "type": "command", "bash": "~/.copilot/hooks/copilot-status.sh done", "timeoutSec": 5 }
+    ],
+    "errorOccurred": [
+      { "type": "command", "bash": "~/.copilot/hooks/copilot-status.sh error", "timeoutSec": 5 }
+    ]
+  }
+}

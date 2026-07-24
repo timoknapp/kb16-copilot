@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  macOS LaunchAgent to keep the KB16 status bridge running in the background.
+  Install:
+    1. Edit the two /Users/YOU paths below to your home directory.
+    2. cp com.kb16.statusbridge.plist ~/Library/LaunchAgents/
+    3. launchctl load ~/Library/LaunchAgents/com.kb16.statusbridge.plist
+  Stop:
+    launchctl unload ~/Library/LaunchAgents/com.kb16.statusbridge.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.kb16.statusbridge</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/Users/YOU/kb16-copilot-setup/bridge/kb16_status_bridge.py</string>
+        <string>--watch</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/YOU/Library/Logs/kb16-statusbridge.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/YOU/Library/Logs/kb16-statusbridge.err.log</string>
+</dict>
+</plist>
