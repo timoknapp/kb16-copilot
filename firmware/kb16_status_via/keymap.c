@@ -1,9 +1,14 @@
 /* Copyright 2026
- * DOIO KB16-01 (rev1) VIA keymap + Raw HID status LEDs.
+ * DOIO KB16-01 (rev2) VIA keymap + Raw HID per-agent status LEDs.
  *
  * This keymap keeps full VIA support AND adds a Raw HID channel so a host
- * bridge can push a Copilot CLI status, which tints the 16 per-key RGB LEDs:
- *   0 idle=off/dim  1 thinking=blue  2 running=yellow  3 done=green  4 error=red
+ * bridge can push Copilot CLI status. Each of the 16 per-key RGB LEDs is an
+ * independent "agent slot", so several concurrent sessions are visible at once:
+ *   0 idle=off  1 thinking=blue  2 running=yellow  3 done=green  4 error=red
+ *
+ * Idle slots are driven to black rather than left alone, so the board stays
+ * dark unless something is actually happening -- the LEDs indicate activity,
+ * never inactivity.
  *
  * VIA still owns the actual key/encoder assignments; this file only provides
  * default layers and the RGB status overlay.
@@ -11,6 +16,14 @@
 
 #include QMK_KEYBOARD_H
 #include "raw_hid.h"
+#include "via.h"
+
+// Custom Raw HID command bytes. These must stay outside VIA's reserved command
+// IDs (0x01-0x15 and 0xFF, see enum via_command_id in quantum/via.h) so that
+// intercepting them never shadows a real VIA command.
+#define KB16_CMD_SET_STATUS 0xC0 // [0xC0, status]       set every slot at once
+#define KB16_CMD_SET_AGENT  0xC1 // [0xC1, slot, status] set one agent slot
+#define KB16_CMD_CLEAR      0xC2 // [0xC2]               all slots back to idle
 
 // ---- Status state (set via Raw HID) ----------------------------------------
 enum copilot_status {
@@ -21,7 +34,9 @@ enum copilot_status {
     ST_ERROR    = 4,
 };
 
-static uint8_t copilot_status = ST_IDLE;
+// One status per LED. Index == agent slot == RGB matrix LED index, which for
+// this board is row-major from the top-left key.
+static uint8_t agent_status[RGB_MATRIX_LED_COUNT] = {0};
 
 // ---- Keymap (VIA-editable; these are just defaults) ------------------------
 // Layout order matches info.json LAYOUT: 4x4 keys + 3 encoder push keys.
@@ -68,32 +83,75 @@ const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][NUM_DIRECTIONS] = {
 };
 #endif
 
-// ---- Raw HID: receive a 1-byte status from the host ------------------------
-// Protocol: byte[0] = command (0x01 = set status), byte[1] = status value.
-void raw_hid_receive(uint8_t *data, uint8_t length) {
-    if (length >= 2 && data[0] == 0x01) {
+// ---- Raw HID: receive agent status from the host ---------------------------
+// With VIA_ENABLE, quantum/via.c owns raw_hid_receive(), so we hook the weak
+// via_command_kb() instead. Returning true means "fully handled, including the
+// raw_hid_send() reply"; returning false lets VIA process the report normally.
+bool via_command_kb(uint8_t *data, uint8_t length) {
+    // [0xC0, status] -- set every slot. Used by the one-shot CLI and to reset.
+    if (length >= 2 && data[0] == KB16_CMD_SET_STATUS) {
         if (data[1] <= ST_ERROR) {
-            copilot_status = data[1];
+            for (uint8_t i = 0; i < RGB_MATRIX_LED_COUNT; i++) {
+                agent_status[i] = data[1];
+            }
         }
+        raw_hid_send(data, length); // echo so the host can confirm delivery
+        return true;
     }
-    // Echo back so the host can confirm delivery.
-    raw_hid_send(data, length);
+
+    // [0xC1, slot, status] -- set a single agent's LED.
+    if (length >= 3 && data[0] == KB16_CMD_SET_AGENT) {
+        if (data[1] < RGB_MATRIX_LED_COUNT && data[2] <= ST_ERROR) {
+            agent_status[data[1]] = data[2];
+        }
+        raw_hid_send(data, length);
+        return true;
+    }
+
+    // [0xC2] -- all slots back to idle (board goes dark).
+    if (length >= 1 && data[0] == KB16_CMD_CLEAR) {
+        for (uint8_t i = 0; i < RGB_MATRIX_LED_COUNT; i++) {
+            agent_status[i] = ST_IDLE;
+        }
+        raw_hid_send(data, length);
+        return true;
+    }
+
+    // QMK reports VIA_PROTOCOL_VERSION 0x000D (v13), but the VIA web app only
+    // supports up to 0x000C (v12) and rejects anything newer with "does not
+    // seem to respond like a VIA-enabled keyboard". v13 is purely additive over
+    // v12 -- it only adds the id_keycodes_version (0x06) keyboard-value ID and
+    // changes no existing command -- so answering 12 is safe: a v12 client
+    // never asks for the one thing that differs.
+    //
+    // via.h hard-#defines VIA_PROTOCOL_VERSION with no #ifndef guard, so it
+    // cannot be overridden from config.h. via_command_kb() is consulted before
+    // via.c's own switch, which makes this the only override point that does
+    // not require patching the QMK tree. Remove once VIA supports v13.
+    if (length >= 3 && data[0] == id_get_protocol_version) {
+        data[1] = 0x00;
+        data[2] = 0x0C;
+        raw_hid_send(data, length);
+        return true;
+    }
+
+    return false;
 }
 
-// ---- RGB overlay: tint all keys by status ----------------------------------
-// Runs after the active VIA animation; when status != idle it overrides colors.
+// ---- RGB overlay: one LED per agent ----------------------------------------
+// Runs after the active VIA animation and repaints every LED, so the board
+// shows activity and nothing else: an idle slot is driven to black rather than
+// left showing the underlying animation.
 bool rgb_matrix_indicators_user(void) {
-    uint8_t r = 0, g = 0, b = 0;
-    switch (copilot_status) {
-        case ST_THINKING: r = 20;  g = 90;  b = 255; break; // blue
-        case ST_RUNNING:  r = 255; g = 170; b = 0;   break; // yellow
-        case ST_DONE:     r = 30;  g = 200; b = 90;  break; // green
-        case ST_ERROR:    r = 240; g = 40;  b = 40;  break; // red
-        case ST_IDLE:
-        default:
-            return false; // leave the normal VIA animation untouched
-    }
     for (uint8_t i = 0; i < RGB_MATRIX_LED_COUNT; i++) {
+        uint8_t r = 0, g = 0, b = 0; // idle -> off
+        switch (agent_status[i]) {
+            case ST_THINKING: r = 20;  g = 90;  b = 255; break; // blue
+            case ST_RUNNING:  r = 255; g = 170; b = 0;   break; // yellow
+            case ST_DONE:     r = 30;  g = 200; b = 90;  break; // green
+            case ST_ERROR:    r = 240; g = 40;  b = 40;  break; // red
+            default: break;
+        }
         rgb_matrix_set_color(i, r, g, b);
     }
     return false;

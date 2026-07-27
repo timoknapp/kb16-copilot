@@ -1,4 +1,10 @@
 -- DOIO KB16 / Codex-Micro-style Copilot status indicator (menubar, Variant B)
+--
+-- OPTIONAL. If you run the Variant A2 firmware, the keyboard LEDs already show
+-- status -- and show every concurrent agent separately, which this dot cannot:
+-- it collapses all sessions into one merged colour. Append this file only if
+-- you also want a menubar dot.
+--
 -- Add this block to your existing ~/.hammerspoon/init.lua (keep the KB16
 -- Copilot key bindings from before).
 --
@@ -6,6 +12,12 @@
 -- a menubar dot: idle / thinking / running / done / error.
 
 local STATUS_FILE = os.getenv("HOME") .. "/.copilot-kb16-status"
+
+-- Enable the `hs` CLI so this config can be reloaded from a terminal with
+-- `hs -c 'hs.reload()'`. Hammerspoon does NOT pick up init.lua changes by
+-- itself -- if it was started before you edited init.lua it keeps running the
+-- old code indefinitely, and the menubar dot silently stays grey.
+require("hs.ipc")
 
 local STATUS = {
   idle     = { color = { red = 0.55, green = 0.55, blue = 0.55 }, label = "Codex: idle" },

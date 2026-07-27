@@ -1,0 +1,17 @@
+#!/bin/sh
+# Launcher for the KB16 status bridge.
+#
+# This wrapper exists purely so macOS shows a meaningful entry in
+# System Settings > General > Login Items & Extensions. Pointing the
+# LaunchAgent straight at the venv interpreter makes the login item appear as a
+# bare "python", which says nothing about what it is or why it runs at login.
+# macOS displays this file's name verbatim, so keep the name descriptive.
+#
+# Override the interpreter with KB16_PYTHON if the venv lives elsewhere.
+
+set -eu
+
+KB16_PYTHON="${KB16_PYTHON:-$HOME/.venvs/kb16-bridge/bin/python}"
+HERE=$(cd "$(dirname "$0")" && pwd)
+
+exec "$KB16_PYTHON" "$HERE/kb16_status_bridge.py" --watch "$@"

@@ -182,14 +182,35 @@ Install Hammerspoon and grant Accessibility permission
 brew install --cask hammerspoon
 ```
 
-Append both Lua files to `~/.hammerspoon/init.lua`:
+Append the key bindings to `~/.hammerspoon/init.lua`:
 
 ```bash
-cat hammerspoon/init-keys.lua     >> ~/.hammerspoon/init.lua
-cat hammerspoon/codex-status.lua  >> ~/.hammerspoon/init.lua
+cat hammerspoon/init-keys.lua >> ~/.hammerspoon/init.lua
+```
+
+`hammerspoon/codex-status.lua` adds an **optional** menubar status dot. It is not
+needed if you have the firmware LEDs (Variant A2): the keyboard shows every
+concurrent agent separately, whereas the dot can only ever show one merged
+status. Append it only if you want the dot as well:
+
+```bash
+cat hammerspoon/codex-status.lua >> ~/.hammerspoon/init.lua   # optional
 ```
 
 Then choose **Reload Config** from the Hammerspoon menu.
+
+> ⚠️ Hammerspoon never re-reads `init.lua` on its own. If it was already running
+> when you appended these files, it keeps executing the **old** config
+> indefinitely and the dot silently stays grey — the config on disk looks
+> perfectly correct the whole time. Compare the two if the dot never changes:
+>
+> ```bash
+> ps -p $(pgrep -x Hammerspoon) -o lstart=   # when it started
+> stat -f '%Sm' ~/.hammerspoon/init.lua      # when the config last changed
+> ```
+>
+> `codex-status.lua` loads `hs.ipc`, so after the first manual reload you can
+> script it: `hs -c 'hs.reload()'`.
 
 ### 4. Verify
 
@@ -262,10 +283,10 @@ glows with live status) is **implemented in Variant A2** — see
 HID channel that a host bridge (`bridge/kb16_status_bridge.py`) uses to tint the
 16 per-key LEDs by Copilot status.
 
-Requires building/flashing custom QMK firmware (untested on hardware by the
-author of these files; DFU recovery is possible). The stock rev1 exposes a
-`ws2812` **rgb_matrix** with 16 per-key LEDs, so per-key status coloring is
-fully supported.
+Requires building/flashing custom QMK firmware. Verified end-to-end on a KB16-01
+**rev2** (STM32F103, stm32duino bootloader); a backup of the original firmware
+is in `firmware/backup/`. Both revisions expose a `ws2812` **rgb_matrix** with 16
+per-key LEDs, so per-key status coloring is fully supported.
 
 Trade-off vs. the menu-bar approach (Variant B): more setup and a firmware
 flash, but the status is visible on the keys themselves.

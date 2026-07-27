@@ -7,3 +7,6 @@
 # Editor
 *.swp
 .vscode/
+
+# Python bytecode from the bridge
+__pycache__/

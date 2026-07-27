@@ -2,9 +2,12 @@
 <!--
   macOS LaunchAgent to keep the KB16 status bridge running in the background.
   Install:
-    1. Edit the two /Users/YOU paths below to your home directory.
-    2. cp com.kb16.statusbridge.plist ~/Library/LaunchAgents/
-    3. launchctl load ~/Library/LaunchAgents/com.kb16.statusbridge.plist
+    1. Create the venv (Apple's python3 cannot load hidapi - see requirements.txt):
+         /opt/homebrew/bin/python3.13 -m venv ~/.venvs/kb16-bridge
+         ~/.venvs/kb16-bridge/bin/pip install -r bridge/requirements.txt
+    2. Edit the /Users/YOU paths below to your home directory.
+    3. cp com.kb16.statusbridge.plist ~/Library/LaunchAgents/
+    4. launchctl load ~/Library/LaunchAgents/com.kb16.statusbridge.plist
   Stop:
     launchctl unload ~/Library/LaunchAgents/com.kb16.statusbridge.plist
 -->
@@ -14,14 +17,19 @@
     <string>com.kb16.statusbridge</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/bin/python3</string>
-        <string>/Users/YOU/kb16-copilot-setup/bridge/kb16_status_bridge.py</string>
-        <string>--watch</string>
+        <string>/Users/YOU/kb16-copilot-setup/bridge/kb16-status-bridge</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
     <true/>
+    <!-- Without this, Python block-buffers stdout when it is not a tty and the
+         log files stay empty, making the agent impossible to diagnose. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
     <key>StandardOutPath</key>
     <string>/Users/YOU/Library/Logs/kb16-statusbridge.log</string>
     <key>StandardErrorPath</key>

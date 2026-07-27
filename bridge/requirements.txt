@@ -1,1 +1,6 @@
-hid>=1.0.5
+# hidapi bundles the native library in its macOS wheels.
+# Do NOT use the similarly-named `hid` package: it dlopen()s a bare
+# "libhidapi.dylib", which macOS cannot resolve for Apple-signed interpreters
+# (/usr/bin/python3, Xcode python3) because SIP strips DYLD_LIBRARY_PATH.
+# Both packages provide `import hid`, so install only one.
+hidapi>=0.14
