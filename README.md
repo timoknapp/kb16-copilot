@@ -1,10 +1,18 @@
 # DOIO KB16-01 → GitHub Copilot CLI Command Center
 
-Turn a **DOIO KB16-01** macro pad into a control surface for **GitHub Copilot CLI** on **macOS + iTerm2**, complete with a
-**Codex-Micro-style live status light** in the macOS menu bar.
+Turn a **DOIO KB16-01** macro pad into a control surface for **GitHub Copilot CLI** on **macOS + iTerm2**, with
+**Codex-Micro-style live status lighting** — one key LED per running agent.
 
-No custom firmware required — everything runs through **VIA** + **Hammerspoon** +
-**Copilot CLI hooks**.
+Two status options, pick either or both:
+
+| | Variant A2 — keyboard LEDs | Variant B — menu-bar dot |
+|---|---|---|
+| Shows | **one LED per concurrent agent** | one merged status |
+| Needs | custom QMK firmware (flashing) | Hammerspoon only |
+| Setup | VIA + Hammerspoon + hooks + bridge | VIA + Hammerspoon + hooks |
+
+Key and encoder control needs **no custom firmware** — that runs entirely through
+**VIA** + **Hammerspoon** + **Copilot CLI hooks**.
 
 ---
 
@@ -15,12 +23,11 @@ No custom firmware required — everything runs through **VIA** + **Hammerspoon*
 - [Architecture](#architecture)
 - [Key map](#key-map)
 - [Encoders](#encoders)
-- [Live status light](#live-status-light)
+- [Live status](#live-status)
 - [Installation](#installation)
 - [Troubleshooting](#troubleshooting)
 - [Repo layout](#repo-layout)
 - [Design decisions & safety](#design-decisions--safety)
-- [Future work (Variant A)](#future-work-variant-a)
 
 ---
 
@@ -28,9 +35,13 @@ No custom firmware required — everything runs through **VIA** + **Hammerspoon*
 
 - 16 keys drive Copilot CLI slash-commands and terminal control inside iTerm2.
 - 3 rotary encoders scroll, navigate tabs, and control volume.
-- A menu-bar dot mirrors Copilot's live state (idle / thinking / running / done / error),
-  inspired by the Work Louder **Codex Micro**.
-- Works identically whether you launch `copilot` directly.
+- **Each key LED tracks one Copilot agent** (idle / thinking / running / done /
+  error), so several concurrent sessions are visible at a glance — inspired by
+  the Work Louder **Codex Micro**. Idle is dark: the board shows activity, never
+  inactivity.
+- Works with both **Copilot CLI** and **VS Code Copilot Chat**, each session
+  getting its own LED.
+- An optional menu-bar dot can mirror a single merged status.
 
 ---
 
@@ -42,12 +53,28 @@ No custom firmware required — everything runs through **VIA** + **Hammerspoon*
 | Vendor ID    | `0xD010`          |
 | Product ID   | `0x1601`          |
 | Firmware     | QMK (VIA V2)      |
-| Layout       | 16 keys, 3 encoders, RGB underglow |
+| Layout       | 16 keys, 3 encoders, 16-LED `rgb_matrix` |
 | Matrix       | 4 rows × 5 cols   |
+
+### Two hardware revisions, same name
+
+The KB16-01 ships with two completely different MCUs, and **both report the same
+USB VID/PID and product string in normal mode**. You cannot tell them apart while
+the keyboard is running — only from the bootloader:
+
+| `dfu-util -l` reports | Revision | MCU | QMK target | Flash tool |
+|---|---|---|---|---|
+| `[1eaf:0003] STM32duino bootloader` | **rev2** | STM32F103, 128 KB | `doio/kb16/rev2` | `dfu-util` |
+| nothing; `dfu-programmer atmega32u4 get` answers | **rev1** | ATmega32U4, 32 KB | `doio/kb16/rev1` | `dfu-programmer` |
+
+This only matters for Variant A2. Check before flashing — firmware built for the
+wrong MCU will not run.
 
 VIA definition: `via/kb16-01.json` (from
 [the-via/keyboards](https://github.com/the-via/keyboards/blob/master/src/doio/kb16/kb16-01.json)).
 Load it in VIA with **"Use V2 definitions (deprecated)"** enabled.
+`via/kb16-01.layout.json` is a saved key layout you can restore with VIA's
+**Load Saved Layout** — flashing resets the keymap stored in EEPROM.
 
 ---
 
@@ -57,18 +84,25 @@ Load it in VIA with **"Use V2 definitions (deprecated)"** enabled.
 ┌──────────────┐   Hyper/keycodes   ┌─────────────┐   keystrokes    ┌────────────┐
 │  KB16-01     │ ─────────────────► │ macOS +     │ ──────────────► │  iTerm2 /  │
 │  (QMK/VIA)   │                    │ Hammerspoon │                 │ Copilot CLI│
-└──────────────┘                    └─────────────┘                 └─────┬──────┘
-                                                                          │ hooks
-                        ┌──────────────────────────┐   status word       │
-   menu-bar dot  ◄──────│ Hammerspoon status poller│ ◄───── file ────────┘
-                        └──────────────────────────┘   ~/.copilot-kb16-status
+└──────▲───────┘                    └─────────────┘                 └─────┬──────┘
+       │ Raw HID                                                          │ hooks
+       │ [0xC1, slot, status]                                             ▼
+┌──────┴───────┐   one file per session   ┌────────────────────────────────────┐
+│ status bridge│ ◄──────────────────────  │ ~/.copilot-kb16-status.d/<uuid>    │
+│ (LaunchAgent)│                          │ ~/.copilot-kb16-status  (aggregate)│
+└──────────────┘                          └──────────────┬─────────────────────┘
+                                                         │ optional
+                                           menu-bar dot ◄─┘
 ```
 
 - **Keys → Copilot:** VIA sends Hyper combos; Hammerspoon types the matching
   slash-command into iTerm (commands are **not** auto-submitted — you press the
   KB16 Enter key to run them).
-- **Copilot → status light:** Copilot CLI hooks write a status word to
-  `~/.copilot-kb16-status`; Hammerspoon polls it and recolors a menu-bar dot.
+- **Copilot → LEDs:** hooks write one status file per agent session, keyed by
+  session UUID. The bridge assigns each session an LED slot and pushes changes
+  over Raw HID.
+- **Copilot → dot (optional):** the same hooks also write a single aggregate
+  status word that Hammerspoon can poll.
 
 ---
 
@@ -135,19 +169,46 @@ key bindings:
 
 ---
 
-## Live status light
+## Live status
 
-A colored dot in the macOS menu bar reflects Copilot's current state.
+### Keyboard LEDs (Variant A2)
 
-| Dot      | Status     | Trigger (Copilot hook)      |
+Each of the 16 key LEDs is an independent **agent slot**, assigned per Copilot
+session and held for that session's life. Slots fill from the top-left,
+row-major:
+
+```
+┌──────┐┌──────┐┌──────┐┌──────┐
+│ sl 0 ││ sl 1 ││ sl 2 ││ sl 3 │
+├──────┤├──────┤├──────┤├──────┤
+│ sl 4 ││ sl 5 ││ sl 6 ││ sl 7 │
+├──────┤├──────┤├──────┤├──────┤
+│ sl 8 ││ sl 9 ││ sl10 ││ sl11 │
+├──────┤├──────┤├──────┤├──────┤
+│ sl12 ││ sl13 ││ sl14 ││ sl15 │
+└──────┘└──────┘└──────┘└──────┘
+```
+
+| LED      | Status     | Trigger (Copilot hook)      |
 | -------- | ---------- | --------------------------- |
-| ● grey   | `idle`     | `sessionStart` / `sessionEnd` |
-| ● blue   | `thinking` | `userPromptSubmitted`, `postToolUse` |
-| ● yellow | `running`  | `preToolUse`                |
-| ● green  | `done`     | `agentStop` (fades to idle after 4s) |
-| ● red    | `error`    | `errorOccurred`             |
+| off      | `idle`     | `sessionStart` / `sessionEnd` |
+| blue     | `thinking` | `userPromptSubmitted`, `postToolUse` |
+| yellow   | `running`  | `preToolUse`                |
+| green    | `done`     | `agentStop` (fades dark after 4s) |
+| red      | `error`    | `errorOccurred`             |
 
-> **Note:** Copilot CLI has no dedicated "waiting for approval" hook event.
+Idle slots are driven to **black**, so the board stays dark unless something is
+running. This suppresses the VIA animation while the bridge is active — stop the
+bridge to get it back. Setup and protocol details:
+[`firmware/README.md`](firmware/README.md).
+
+### Menu-bar dot (Variant B, optional)
+
+A single dot showing one merged status, in the same colours. Redundant if you
+have the LEDs, since it cannot distinguish concurrent agents. Append
+`hammerspoon/codex-status.lua` to enable it.
+
+> **Note:** Copilot has no dedicated "waiting for approval" hook event.
 > `preToolUse` fires before the approval prompt, so approvals show as `running`.
 
 ---
@@ -212,12 +273,29 @@ Then choose **Reload Config** from the Hammerspoon menu.
 > `codex-status.lua` loads `hs.ipc`, so after the first manual reload you can
 > script it: `hs -c 'hs.reload()'`.
 
-### 4. Verify
+### 4. Keyboard LEDs (Variant A2, optional)
+
+Build and flash the firmware, then run the status bridge. Full guide:
+[`firmware/README.md`](firmware/README.md). **Check your board revision first** —
+see [Hardware](#hardware).
+
+### 5. Verify
 
 ```bash
-echo running > ~/.copilot-kb16-status   # dot turns yellow
-echo idle    > ~/.copilot-kb16-status   # dot turns grey
-copilot                                 # send a prompt, watch the dot cycle
+# hooks are writing per-session state
+ls ~/.copilot-kb16-status.d/
+
+# the bridge is running and assigning slots
+launchctl print gui/$(id -u)/com.kb16.statusbridge | grep -E 'state =|pid ='
+tail -f ~/Library/Logs/kb16-statusbridge.log      # logs "slot N -> status"
+
+# drive the LEDs directly, bypassing the hooks
+~/.venvs/kb16-bridge/bin/python bridge/kb16_status_bridge.py running  # all keys yellow
+~/.venvs/kb16-bridge/bin/python bridge/kb16_status_bridge.py idle     # all keys off
+
+# menu-bar dot, if installed
+echo running > ~/.copilot-kb16-status
+echo idle    > ~/.copilot-kb16-status
 ```
 
 ---
@@ -227,8 +305,13 @@ copilot                                 # send a prompt, watch the dot cycle
 | Symptom | Fix |
 | ------- | --- |
 | VIA can't load the JSON | Enable **"Use V2 definitions (deprecated)"** first. |
+| VIA: *"does not seem to respond like a VIA-enabled keyboard"* | Either the firmware reports VIA protocol 13 (newer than VIA supports), or the bridge has seized the HID interface. Both are covered in [`firmware/README.md`](firmware/README.md). |
+| LEDs stopped changing after a flash | Every flash needs a replug, which invalidates the bridge's HID handle. It now reconnects automatically; restart it with `launchctl kickstart -k gui/$(id -u)/com.kb16.statusbridge`. |
+| LEDs work in VS Code but not Copilot CLI | The two send different JSON field names (`session_id` vs `sessionId`). Fixed in `copilot/copilot-status.sh`; make sure `~/.copilot/hooks/` has the current copy. |
+| Menu-bar dot never changes | Hammerspoon does not re-read `init.lua` by itself. Compare `ps -p $(pgrep -x Hammerspoon) -o lstart=` with `stat -f '%Sm' ~/.hammerspoon/init.lua`, then reload. |
+| Keys stopped working after flashing | Flashing resets the VIA keymap in EEPROM. Restore `via/kb16-01.layout.json` with VIA's **Load Saved Layout**. |
 | F14/F15 dim the screen | Use the Hyper combos in this repo, not raw F13–F24. |
-| Status dot never changes | Check `~/.copilot/hooks/*.json` exists and `copilot-status.sh` is `+x`. Test: `echo done > ~/.copilot-kb16-status`. |
+| Status never changes at all | Check `~/.copilot/hooks/*.json` exists and `copilot-status.sh` is `+x`. Enable payload capture with `touch ~/.copilot-kb16-debug`. |
 | `Ctrl+Tab` only bounces 2 tabs | That's iTerm's MRU cycle. Use dedicated `Hyper+N`/`Hyper+P` bound to Next/Previous Tab. |
 | `Cmd+→` tab switch ignored | Cmd+Arrow injected via HID is unreliable; bind a Hyper shortcut in iTerm instead. |
 | Slash keys type outside iTerm | By design — Hammerspoon only types when iTerm is frontmost, otherwise it shows an alert. |
@@ -238,24 +321,27 @@ copilot                                 # send a prompt, watch the dot cycle
 ## Repo layout
 
 ```
-kb16-copilot-setup/
+kb16-copilot/
 ├── README.md
 ├── via/
-│   └── kb16-01.json            # VIA V2 keyboard definition
+│   ├── kb16-01.json             # VIA V2 keyboard definition
+│   └── kb16-01.layout.json      # saved key layout (restore after flashing)
 ├── hammerspoon/
-│   ├── init-keys.lua           # KB16 → Copilot key bindings (Hyper)
-│   └── codex-status.lua        # menu-bar status poller
+│   ├── init-keys.lua            # KB16 → Copilot key bindings (Hyper)
+│   └── codex-status.lua         # optional menu-bar status poller
 ├── copilot/
-│   ├── copilot-status.sh       # hook script → writes status word
-│   └── kb16-status.json        # Copilot CLI hook definitions
-├── firmware/                   # Variant A2: VIA + Raw HID status LEDs
-│   ├── README.md               # build & flash guide
+│   ├── copilot-status.sh        # hook script → per-session + aggregate status
+│   └── kb16-status.json         # Copilot hook definitions
+├── firmware/                    # Variant A2: VIA + Raw HID status LEDs
+│   ├── README.md                # build, flash, protocol & troubleshooting
+│   ├── backup/                  # this board's original firmware (restorable)
 │   └── kb16_status_via/
-│       ├── keymap.c            # VIA keymap + Raw HID + RGB status overlay
+│       ├── keymap.c             # VIA keymap + Raw HID + per-agent RGB overlay
 │       ├── keymap.json
 │       └── rules.mk
-└── bridge/                     # host → KB16 Raw HID status pusher
-    ├── kb16_status_bridge.py   # one-shot + --watch modes
+└── bridge/                      # host → KB16 Raw HID status pusher
+    ├── kb16_status_bridge.py    # one-shot + --watch (per-agent slots)
+    ├── kb16-status-bridge       # wrapper so the login item has a real name
     ├── requirements.txt
     └── com.kb16.statusbridge.plist
 ```
@@ -269,27 +355,15 @@ kb16-copilot-setup/
   review it and press the KB16 Enter key to run it. Prevents accidental execution.
 - **No key is mapped to `--allow-all-tools`** or any permanent approval, so a
   stray keypress can never silently grant shell access.
-- **No firmware flashing** — VIA keeps the pad reconfigurable at any time.
-- The status file is **tool-agnostic**: anything that can write a status word to
-  `~/.copilot-kb16-status` can drive the light.
-
----
-
-## Future work (Variant A)
-
-True per-key RGB feedback on the pad (like the Codex Micro, where each Agent key
-glows with live status) is **implemented in Variant A2** — see
-[`firmware/README.md`](firmware/README.md). It keeps VIA editing and adds a Raw
-HID channel that a host bridge (`bridge/kb16_status_bridge.py`) uses to tint the
-16 per-key LEDs by Copilot status.
-
-Requires building/flashing custom QMK firmware. Verified end-to-end on a KB16-01
-**rev2** (STM32F103, stm32duino bootloader); a backup of the original firmware
-is in `firmware/backup/`. Both revisions expose a `ws2812` **rgb_matrix** with 16
-per-key LEDs, so per-key status coloring is fully supported.
-
-Trade-off vs. the menu-bar approach (Variant B): more setup and a firmware
-flash, but the status is visible on the keys themselves.
+- **Keys and encoders need no firmware flashing** — VIA keeps the pad
+  reconfigurable at any time. Only the status LEDs (Variant A2) need custom
+  firmware, and the original is backed up in `firmware/backup/` so the flash is
+  reversible.
+- **Session IDs are validated** before use as filenames, so a malformed or
+  hostile one cannot escape the status directory.
+- The status files are **tool-agnostic**: anything that writes a status word to
+  `~/.copilot-kb16-status.d/<id>` (or the aggregate file) can drive the lights.
+- **LEDs indicate activity, never inactivity** — an idle board is a dark board.
 
 ---
 

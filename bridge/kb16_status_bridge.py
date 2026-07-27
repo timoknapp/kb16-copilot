@@ -60,7 +60,8 @@ DEFAULT_SESSION_DIR = os.path.expanduser("~/.copilot-kb16-status.d")
 SLOT_COUNT = 16
 
 # "done" is a transient celebration, not a state worth holding a slot lit for.
-# After this long a finished session goes dark, matching the menubar dot's fade.
+# After this long a finished session goes dark. This is checked against the
+# file's mtime here, so it does not depend on anything else running.
 DONE_FADE_SECONDS = 4.0
 
 # A session whose file has not been touched in this long is treated as gone.

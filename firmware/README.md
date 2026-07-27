@@ -138,7 +138,7 @@ To keep it always running, generate the LaunchAgent with your real paths
 substituted and load it:
 
 ```bash
-sed -e "s|/Users/YOU/kb16-copilot-setup|$PWD|g" -e "s|/Users/YOU|$HOME|g" \
+sed -e "s|/Users/YOU/kb16-copilot|$PWD|g" -e "s|/Users/YOU|$HOME|g" \
     bridge/com.kb16.statusbridge.plist > ~/Library/LaunchAgents/com.kb16.statusbridge.plist
 plutil -lint ~/Library/LaunchAgents/com.kb16.statusbridge.plist
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.kb16.statusbridge.plist
@@ -262,7 +262,9 @@ for f in ~/.copilot-kb16-status.d/*; do printf '%s = %s\n' "$(basename $f)" "$(c
 tail -f ~/Library/Logs/kb16-statusbridge.log     # logs "slot N -> status"
 ```
 
-## Troubleshooting: LEDs stopped changing after a flash
+## Troubleshooting
+
+### LEDs stopped changing after a flash
 
 Every flash needs a replug, and that invalidates the bridge's open HID handle.
 The bridge now checks each write and reconnects, logging:
@@ -284,7 +286,7 @@ Also check `launchctl print gui/$(id -u)/com.kb16.statusbridge | grep runs` — 
 `runs = 1` and the process predates your last replug, it is holding a stale
 handle.
 
-## Troubleshooting: VIA says the board isn't VIA-enabled
+### VIA says the board isn't VIA-enabled
 
 > KB16-01 does not seem to respond like a VIA-enabled keyboard.
 
@@ -358,16 +360,19 @@ you lose key/encoder editing:
 qmk flash -kb doio/kb16/rev2 -km default
 ```
 
-Flashing can reset the EEPROM that stores your VIA layout, so export it from the
-VIA app first.
+Flashing resets the EEPROM that stores your VIA layout, so export it from the
+VIA app first — or restore the copy committed at `via/kb16-01.layout.json`.
 
-In practice you may never need to revert: with the bridge not running the status
-stays `idle`, `rgb_matrix_indicators_user()` returns immediately without touching
-any LED, and the board behaves like stock VIA firmware.
+With the bridge stopped the board returns to its normal VIA animation, since
+nothing is painting the LEDs any more.
 
 ## Known limitations
 
-- No "waiting for approval" state (Copilot has no such hook event).
-- LED tint currently colors **all** keys. To light only specific keys, edit the
-  loop in `keymap.c` (`rgb_matrix_indicators_user`) to target LED indices.
-- `RGB_MATRIX_LED_COUNT` must match the board (16); the stock rev1 defines this.
+- No "waiting for approval" state (Copilot has no such hook event), so
+  approvals appear as `running`.
+- At most 16 concurrent agents; beyond that, extra sessions get no LED.
+- While the bridge runs, the VIA animation is suppressed — idle slots are
+  actively painted black. Stop the bridge, or send `0xC2`, to get it back.
+- Copilot CLI sends no `hook_event_name`, so its sessions cannot be detected
+  ending and are reclaimed by the 30-minute TTL instead of immediately.
+- `RGB_MATRIX_LED_COUNT` must match the board (16); both revisions define this.

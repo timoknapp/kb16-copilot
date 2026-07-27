@@ -17,7 +17,7 @@
     <string>com.kb16.statusbridge</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/YOU/kb16-copilot-setup/bridge/kb16-status-bridge</string>
+        <string>/Users/YOU/kb16-copilot/bridge/kb16-status-bridge</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
