@@ -1,6 +1,6 @@
 -- DOIO KB16 / Codex-Micro-style Copilot status indicator (menubar, Variant B)
 --
--- OPTIONAL. If you run the Variant A2 firmware, the keyboard LEDs already show
+-- OPTIONAL. If you run the Variant A firmware, the keyboard LEDs already show
 -- status -- and show every concurrent agent separately, which this dot cannot:
 -- it collapses all sessions into one merged colour. Append this file only if
 -- you also want a menubar dot.

@@ -5,7 +5,7 @@ Turn a **DOIO KB16-01** macro pad into a control surface for **GitHub Copilot CL
 
 Two status options, pick either or both:
 
-| | Variant A2 — keyboard LEDs | Variant B — menu-bar dot |
+| | Variant A — keyboard LEDs | Variant B — menu-bar dot |
 |---|---|---|
 | Shows | **one LED per concurrent agent** | one merged status |
 | Needs | custom QMK firmware (flashing) | Hammerspoon only |
@@ -67,7 +67,7 @@ the keyboard is running — only from the bootloader:
 | `[1eaf:0003] STM32duino bootloader` | **rev2** | STM32F103, 128 KB | `doio/kb16/rev2` | `dfu-util` |
 | nothing; `dfu-programmer atmega32u4 get` answers | **rev1** | ATmega32U4, 32 KB | `doio/kb16/rev1` | `dfu-programmer` |
 
-This only matters for Variant A2. Check before flashing — firmware built for the
+This only matters for Variant A. Check before flashing — firmware built for the
 wrong MCU will not run.
 
 VIA definition: `via/kb16-01.json` (from
@@ -171,7 +171,7 @@ key bindings:
 
 ## Live status
 
-### Keyboard LEDs (Variant A2)
+### Keyboard LEDs (Variant A)
 
 Each of the 16 key LEDs is an independent **agent slot**, assigned per Copilot
 session and held for that session's life. Slots fill from the top-left,
@@ -250,7 +250,7 @@ cat hammerspoon/init-keys.lua >> ~/.hammerspoon/init.lua
 ```
 
 `hammerspoon/codex-status.lua` adds an **optional** menubar status dot. It is not
-needed if you have the firmware LEDs (Variant A2): the keyboard shows every
+needed if you have the firmware LEDs (Variant A): the keyboard shows every
 concurrent agent separately, whereas the dot can only ever show one merged
 status. Append it only if you want the dot as well:
 
@@ -273,7 +273,7 @@ Then choose **Reload Config** from the Hammerspoon menu.
 > `codex-status.lua` loads `hs.ipc`, so after the first manual reload you can
 > script it: `hs -c 'hs.reload()'`.
 
-### 4. Keyboard LEDs (Variant A2, optional)
+### 4. Keyboard LEDs (Variant A, optional)
 
 Build and flash the firmware, then run the status bridge. Full guide:
 [`firmware/README.md`](firmware/README.md). **Check your board revision first** —
@@ -332,7 +332,7 @@ kb16-copilot/
 ├── copilot/
 │   ├── copilot-status.sh        # hook script → per-session + aggregate status
 │   └── kb16-status.json         # Copilot hook definitions
-├── firmware/                    # Variant A2: VIA + Raw HID status LEDs
+├── firmware/                    # Variant A: VIA + Raw HID status LEDs
 │   ├── README.md                # build, flash, protocol & troubleshooting
 │   ├── backup/                  # this board's original firmware (restorable)
 │   └── kb16_status_via/
@@ -356,7 +356,7 @@ kb16-copilot/
 - **No key is mapped to `--allow-all-tools`** or any permanent approval, so a
   stray keypress can never silently grant shell access.
 - **Keys and encoders need no firmware flashing** — VIA keeps the pad
-  reconfigurable at any time. Only the status LEDs (Variant A2) need custom
+  reconfigurable at any time. Only the status LEDs (Variant A) need custom
   firmware, and the original is backed up in `firmware/backup/` so the flash is
   reversible.
 - **Session IDs are validated** before use as filenames, so a malformed or

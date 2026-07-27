@@ -1,4 +1,4 @@
-# Variant A2 — VIA + Raw HID status LEDs on the KB16-01
+# Variant A — VIA + Raw HID status LEDs on the KB16-01
 
 This adds **real per-key RGB status feedback** on the pad itself (like the Codex
 Micro), while **keeping VIA** for key/encoder editing. It requires building and
