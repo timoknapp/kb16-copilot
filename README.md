@@ -113,7 +113,7 @@ functions like F13–F24 brightness/media keys).
 
 ```
 ┌──────────┬──────────┬──────────┬──────────┐
-│  Esc     │  Ctrl+C  │  Enter   │ Shift+Tab│   Row 1  (raw keycodes)
+│  Esc     │  Ctrl+C  │  Enter   │   Tab    │   Row 1  (raw keycodes)
 ├──────────┼──────────┼──────────┼──────────┤
 │  iTerm   │ /model   │ /context │ /diff    │   Row 2  (Hyper+1..4)
 ├──────────┼──────────┼──────────┼──────────┤
@@ -130,7 +130,7 @@ functions like F13–F24 brightness/media keys).
 | Row 1 · 1        | Esc / cancel    | `KC_ESC`            |
 | Row 1 · 2        | Ctrl+C (SIGINT) | `LCTL(KC_C)`        |
 | Row 1 · 3        | Enter / submit  | `KC_ENTER`          |
-| Row 1 · 4        | Copilot mode    | `LSFT(KC_TAB)`      |
+| Row 1 · 4        | Tab             | `KC_TAB`            |
 | Row 2 · 1        | Focus iTerm     | `HYPR(KC_1)`        |
 | Row 2 · 2        | `/model`        | `HYPR(KC_2)`        |
 | Row 2 · 3        | `/context`      | `HYPR(KC_3)`        |
@@ -147,18 +147,31 @@ functions like F13–F24 brightness/media keys).
 > Row 1 keys work as pure keystrokes and do **not** need Hammerspoon.
 > Rows 2–4 rely on Hammerspoon to translate the Hyper combo into a typed command.
 
+> VIA's exported layout (`via/kb16-01.layout.json`) uses short aliases for the
+> same keycodes: `C(KC_C)` for `LCTL(KC_C)`, `KC_ENT` for `KC_ENTER`. Those are
+> not mismatches.
+
 ---
 
 ## Encoders
 
-| Encoder | Rotate CCW | Rotate CW  | Click            |
-| ------- | ---------- | ---------- | ---------------- |
-| E1 (L)  | `KC_UP`    | `KC_DOWN`  | `KC_ENTER`       |
-| E2 (M)  | `KC_PGUP`  | `KC_PGDN`  | `LSFT(KC_TAB)`   |
-| E3 (R)  | `HYPR(KC_P)`  | `HYPR(KC_N)`  | see below        |
+The three knobs sit to the right of the key grid: two small ones side by side
+at the top, one large one below and between them.
 
-**E3 also handles iTerm tab switching** via Hyper combos mapped to custom iTerm
-key bindings:
+```
+  [ 4 x 4 keys ]      (E1)  (E2)      E1 small, top-left
+                         (E3)         E2 small, top-right
+                                      E3 large, bottom-centre
+```
+
+| Encoder | Position | Rotate CCW | Rotate CW | Push |
+| ------- | -------- | ---------- | --------- | ---- |
+| E1 | small, top-left | `KC_UP` | `KC_DOWN` | `KC_ENTER` |
+| E2 | small, top-right | `HYPR(KC_P)` | `HYPR(KC_N)` | `KC_MUTE` |
+| E3 | large, bottom-centre | `KC_PGUP` | `KC_PGDN` | `RGB_MOD` |
+
+**E2 handles iTerm tab switching** via Hyper combos mapped to custom iTerm key
+bindings:
 
 - `HYPR(KC_N)` → iTerm **Next Tab** (bind `Hyper+N` to "Next Tab" in iTerm)
 - `HYPR(KC_P)` → iTerm **Previous Tab** (bind `Hyper+P` to "Previous Tab" in iTerm)
@@ -166,6 +179,9 @@ key bindings:
 > iTerm's default `Cmd+→` / `Ctrl+Tab` proved unreliable when injected via HID,
 > so we bind dedicated Hyper shortcuts inside iTerm instead. See
 > [Troubleshooting](#troubleshooting).
+
+> E3's push (`RGB_MOD`) is inert while the status bridge runs, since the bridge
+> repaints every LED each frame. That makes it the natural key to repurpose.
 
 ---
 
