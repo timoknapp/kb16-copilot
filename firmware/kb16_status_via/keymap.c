@@ -25,6 +25,10 @@
 #define KB16_CMD_SET_AGENT  0xC1 // [0xC1, slot, status] set one agent slot
 #define KB16_CMD_CLEAR      0xC2 // [0xC2]               all slots back to idle
 
+// Layer whose 16 keys select an agent (MEH+A..P, handled by Hammerspoon).
+// Reached with OSL(1) on the large bottom encoder push.
+#define KB16_AGENT_LAYER 1
+
 // ---- Status state (set via Raw HID) ----------------------------------------
 enum copilot_status {
     ST_IDLE     = 0,
@@ -39,36 +43,39 @@ enum copilot_status {
 static uint8_t agent_status[RGB_MATRIX_LED_COUNT] = {0};
 
 // ---- Keymap (VIA-editable; these are just defaults) ------------------------
-// Layout order matches info.json LAYOUT: 4x4 keys + 3 encoder push keys.
+// LAYOUT takes 19 positions in info.json order, and the encoder push switches
+// sit at column 4 -- i.e. *interleaved* at positions 4, 9 and 14, not appended
+// at the end. Getting that wrong shifts the whole board by one key, which only
+// becomes visible after an EEPROM reset.
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+    // Layer 0: control. Matches via/kb16-01.layout.json.
     [0] = LAYOUT(
-        KC_ESC,  LCTL(KC_C), KC_ENTER, LSFT(KC_TAB),
-        HYPR(KC_1), HYPR(KC_2), HYPR(KC_3), HYPR(KC_4),
-        HYPR(KC_5), HYPR(KC_6), HYPR(KC_7), HYPR(KC_8),
-        HYPR(KC_9), HYPR(KC_0), HYPR(KC_MINS), HYPR(KC_EQL),
-        // encoder push keys (E1, E2, E3):
-        KC_ENTER, LSFT(KC_TAB), KC_MUTE
+    //  col 0        col 1        col 2         col 3          encoder push
+        KC_ESC,      LCTL(KC_C),  KC_ENTER,     KC_TAB,        KC_ENTER,
+        HYPR(KC_1),  HYPR(KC_2),  HYPR(KC_3),   HYPR(KC_4),    KC_MUTE,
+        HYPR(KC_5),  HYPR(KC_6),  HYPR(KC_7),   HYPR(KC_8),    OSL(KB16_AGENT_LAYER),
+        HYPR(KC_9),  HYPR(KC_0),  HYPR(KC_MINS),HYPR(KC_EQL)
     ),
+    // Layer 1: agent jump. Each key selects the agent in the matching LED slot;
+    // Hammerspoon maps MEH+A..P to "focus that session's window". Meh rather
+    // than Hyper because Hyper+N / Hyper+P are already iTerm tab switching.
     [1] = LAYOUT(
-        _______, _______, _______, _______,
-        _______, _______, _______, _______,
-        _______, _______, _______, _______,
-        _______, _______, _______, _______,
-        _______, _______, _______
+        MEH(KC_A),   MEH(KC_B),   MEH(KC_C),    MEH(KC_D),     _______,
+        MEH(KC_E),   MEH(KC_F),   MEH(KC_G),    MEH(KC_H),     _______,
+        MEH(KC_I),   MEH(KC_J),   MEH(KC_K),    MEH(KC_L),     _______,
+        MEH(KC_M),   MEH(KC_N),   MEH(KC_O),    MEH(KC_P)
     ),
     [2] = LAYOUT(
-        _______, _______, _______, _______,
-        _______, _______, _______, _______,
-        _______, _______, _______, _______,
-        _______, _______, _______, _______,
-        _______, _______, _______
+        _______, _______, _______, _______, _______,
+        _______, _______, _______, _______, _______,
+        _______, _______, _______, _______, _______,
+        _______, _______, _______, _______
     ),
     [3] = LAYOUT(
-        _______, _______, _______, _______,
-        _______, _______, _______, _______,
-        _______, _______, _______, _______,
-        _______, _______, _______, _______,
-        _______, _______, _______
+        _______, _______, _______, _______, _______,
+        _______, _______, _______, _______, _______,
+        _______, _______, _______, _______, _______,
+        _______, _______, _______, _______
     ),
 };
 
@@ -142,7 +149,14 @@ bool via_command_kb(uint8_t *data, uint8_t length) {
 // Runs after the active VIA animation and repaints every LED, so the board
 // shows activity and nothing else: an idle slot is driven to black rather than
 // left showing the underlying animation.
+//
+// The one exception is the agent layer, where idle slots glow faintly. That is
+// the only feedback that you are in select mode, and it shows which keys are
+// selectable at all -- without it an empty board looks identical on both
+// layers.
 bool rgb_matrix_indicators_user(void) {
+    bool agent_layer = get_highest_layer(layer_state) == KB16_AGENT_LAYER;
+
     for (uint8_t i = 0; i < RGB_MATRIX_LED_COUNT; i++) {
         uint8_t r = 0, g = 0, b = 0; // idle -> off
         switch (agent_status[i]) {
@@ -150,7 +164,11 @@ bool rgb_matrix_indicators_user(void) {
             case ST_RUNNING:  r = 255; g = 170; b = 0;   break; // yellow
             case ST_DONE:     r = 30;  g = 200; b = 90;  break; // green
             case ST_ERROR:    r = 240; g = 40;  b = 40;  break; // red
-            default: break;
+            default:
+                if (agent_layer) {
+                    r = 12; g = 12; b = 12; // dim white: free but selectable
+                }
+                break;
         }
         rgb_matrix_set_color(i, r, g, b);
     }

@@ -39,6 +39,8 @@ Key and encoder control needs **no custom firmware** — that runs entirely thro
   error), so several concurrent sessions are visible at a glance — inspired by
   the Work Louder **Codex Micro**. Idle is dark: the board shows activity, never
   inactivity.
+- **Press a lit key to jump to that agent's window.** One tap on the large knob
+  switches to the agent layer, the next keypress focuses the session.
 - Works with both **Copilot CLI** and **VS Code Copilot Chat**, each session
   getting its own LED.
 - An optional menu-bar dot can mirror a single merged status.
@@ -108,6 +110,19 @@ Load it in VIA with **"Use V2 definitions (deprecated)"** enabled.
 
 ## Key map
 
+Two layers are in use:
+
+| Layer | Purpose | Reached by |
+|---|---|---|
+| 0 | control (slash-commands, terminal keys) | default |
+| 1 | jump to agent | tap the **large bottom knob** — `OSL(1)` |
+| 2–3 | free | — |
+
+`OSL` is a *one-shot* layer: tap the knob, press one key, and the board returns
+to layer 0 by itself. No holding, and no mode you can get stuck in.
+
+### Layer 0 — control
+
 `Hyper` = `Ctrl+Alt+Cmd+Shift` (chosen to avoid clashing with native macOS
 functions like F13–F24 brightness/media keys).
 
@@ -150,6 +165,42 @@ functions like F13–F24 brightness/media keys).
 > VIA's exported layout (`via/kb16-01.layout.json`) uses short aliases for the
 > same keycodes: `C(KC_C)` for `LCTL(KC_C)`, `KC_ENT` for `KC_ENTER`. Those are
 > not mismatches.
+
+### Layer 1 — jump to agent
+
+Tap the large bottom knob, then press the key whose LED is lit. All 16 keys send
+`Meh` combos (`Ctrl+Alt+Shift`), which Hammerspoon turns into "focus that
+session's window":
+
+```
+┌──────────┬──────────┬──────────┬──────────┐
+│  Slot 0  │  Slot 1  │  Slot 2  │  Slot 3  │   Meh+A  Meh+B  Meh+C  Meh+D
+├──────────┼──────────┼──────────┼──────────┤
+│  Slot 4  │  Slot 5  │  Slot 6  │  Slot 7  │   Meh+E  Meh+F  Meh+G  Meh+H
+├──────────┼──────────┼──────────┼──────────┤
+│  Slot 8  │  Slot 9  │  Slot 10 │  Slot 11 │   Meh+I  Meh+J  Meh+K  Meh+L
+├──────────┼──────────┼──────────┼──────────┤
+│  Slot 12 │  Slot 13 │  Slot 14 │  Slot 15 │   Meh+M  Meh+N  Meh+O  Meh+P
+└──────────┴──────────┴──────────┴──────────┘
+```
+
+On this layer, **free slots glow faintly white** so you can see the selectable
+grid and that you are in select mode at all — otherwise an empty board looks
+identical on both layers.
+
+**Meh, not Hyper:** `Hyper+N` and `Hyper+P` are already bound in iTerm for tab
+switching, so `Hyper+A..P` would collide.
+
+How a key finds its window:
+
+| Client | Resolved via | Precision |
+|---|---|---|
+| Copilot CLI | the session's **tty**, which iTerm2 also exposes per session | exact session |
+| VS Code | the workspace folder from `cwd`, matched against window titles | window only |
+
+The CLI case is exact because the hook inherits the controlling tty even with a
+piped stdin. The VS Code extension host has no tty, and one window can hold
+several chat sessions, so only the window can be identified.
 
 ---
 
@@ -274,6 +325,13 @@ status. Append it only if you want the dot as well:
 cat hammerspoon/codex-status.lua >> ~/.hammerspoon/init.lua   # optional
 ```
 
+For the agent-jump keys, add a `dofile` line instead of copying the block, so
+the repo stays the single source of truth:
+
+```lua
+dofile(os.getenv("HOME") .. "/path/to/kb16-copilot/hammerspoon/agent-jump.lua")
+```
+
 Then choose **Reload Config** from the Hammerspoon menu.
 
 > ⚠️ Hammerspoon never re-reads `init.lua` on its own. If it was already running
@@ -344,6 +402,7 @@ kb16-copilot/
 │   └── kb16-01.layout.json      # saved key layout (restore after flashing)
 ├── hammerspoon/
 │   ├── init-keys.lua            # KB16 → Copilot key bindings (Hyper)
+│   ├── agent-jump.lua           # Meh+A..P → focus that agent's window
 │   └── codex-status.lua         # optional menu-bar status poller
 ├── copilot/
 │   ├── copilot-status.sh        # hook script → per-session + aggregate status

@@ -204,6 +204,18 @@ activity and never inactivity, so it stays dark when nothing is running. This
 means the VIA animation is suppressed while the bridge is active; stop the
 bridge (or send `0xC2`) to get it back.
 
+The one exception is **layer 1, the agent layer**: there idle slots glow faintly
+white, so the selectable grid is visible and you can tell you are in select mode.
+Layer 1 is reached with `OSL(1)` on the large bottom encoder push — a one-shot
+layer, so one keypress later the board is back on layer 0 by itself. Pressing a
+slot key sends `MEH+A..P`, which Hammerspoon turns into "focus that session's
+window" using the `tty` / `cwd` recorded by the hook.
+
+> The `LAYOUT` macro takes 19 positions in `info.json` order, and the three
+> encoder push switches sit at column 4 — **interleaved at positions 4, 9 and
+> 14, not appended at the end**. Getting that wrong silently shifts the whole
+> board by one key, and only shows up after an EEPROM reset.
+
 How a session gets a slot:
 
 1. Copilot pipes event JSON to the hook on stdin, including a stable session

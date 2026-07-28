@@ -32,6 +32,7 @@ The KB16-01 uses VID 0xD010 / PID 0x1601. QMK Raw HID advertises usage_page
 """
 
 import ctypes
+import json
 import os
 import sys
 import time
@@ -55,6 +56,9 @@ CMD_CLEAR = 0xC2
 STATUS = {"idle": 0, "thinking": 1, "running": 2, "done": 3, "error": 4}
 DEFAULT_STATE_FILE = os.path.expanduser("~/.copilot-kb16-status")
 DEFAULT_SESSION_DIR = os.path.expanduser("~/.copilot-kb16-status.d")
+
+# Published for Hammerspoon: which agent currently owns which key.
+SLOT_MAP_FILE = os.path.expanduser("~/.copilot-kb16-slots.json")
 
 # LED count on the KB16-01; also the maximum number of agents shown at once.
 SLOT_COUNT = 16
@@ -173,9 +177,13 @@ def read_sessions(session_dir):
         try:
             age = now - os.path.getmtime(path)
             with open(path, "r") as f:
-                status = f.read().strip().lower()
+                lines = f.read().splitlines()
         except OSError:
             continue
+        # Line 1 is the status; lines 2-4 (tty, cwd, client) were added later
+        # and are absent in files written by an older hook, hence the padding.
+        lines += [""] * (4 - len(lines))
+        status = lines[0].strip().lower()
         if status not in STATUS:
             continue
         if age > SESSION_TTL_SECONDS:
@@ -186,7 +194,12 @@ def read_sessions(session_dir):
             continue
         if status == "done" and age > DONE_FADE_SECONDS:
             status = "idle"
-        sessions[name] = status
+        sessions[name] = {
+            "status": status,
+            "tty": lines[1].strip(),
+            "cwd": lines[2].strip(),
+            "client": lines[3].strip() or "unknown",
+        }
     return sessions
 
 
@@ -212,10 +225,38 @@ def assign_slots(sessions, slots):
     return slots
 
 
+def write_slot_map(path, sessions, slots):
+    """Publish slot -> session details for Hammerspoon's jump-to-window keys.
+
+    Written atomically: Hammerspoon polls this file, and a half-written one
+    would make it fail to parse exactly while you are pressing a key.
+    """
+    payload = {}
+    for session_id, slot in slots.items():
+        info = sessions.get(session_id)
+        if not info:
+            continue
+        payload[str(slot)] = {
+            "session": session_id,
+            "status": info["status"],
+            "tty": info["tty"],
+            "cwd": info["cwd"],
+            "client": info["client"],
+        }
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump(payload, f, indent=2, sort_keys=True)
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
 def watch(target):
     """Follow either a session directory (per-agent) or a single status file."""
     h = None
     slots = {}
+    last_slots = None
     shown = {}  # slot -> status word currently on the board
     per_agent = os.path.isdir(target)
     label = "per-agent" if per_agent else "single-status"
@@ -236,7 +277,12 @@ def watch(target):
                 assign_slots(sessions, slots)
                 desired = {slot: "idle" for slot in range(SLOT_COUNT)}
                 for session_id, slot in slots.items():
-                    desired[slot] = sessions[session_id]
+                    desired[slot] = sessions[session_id]["status"]
+                if slots != last_slots or any(
+                    shown.get(s) != v for s, v in desired.items()
+                ):
+                    write_slot_map(SLOT_MAP_FILE, sessions, slots)
+                    last_slots = dict(slots)
             else:
                 desired = {slot: read_state(target) for slot in range(SLOT_COUNT)}
 

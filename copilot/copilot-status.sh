@@ -39,6 +39,20 @@ EVENT_RAW=$(json_field hook_event_name)
 [ -z "$EVENT_RAW" ] && EVENT_RAW=$(json_field hookEventName)
 EVENT=$(printf '%s' "$EVENT_RAW" | tr '[:upper:]' '[:lower:]')
 
+# Where this agent lives, so the host can jump to its window.
+#
+# Copilot CLI runs in a terminal, so the hook inherits that controlling tty even
+# though its stdin is a pipe -- `ps` still reports it, and iTerm2 exposes the
+# same value per session, which makes the match exact. The VS Code extension
+# host has no tty and reports "??", so those sessions fall back to matching on
+# cwd, which can only identify the window, not the chat inside it.
+TTY=$(ps -o tty= -p $$ 2>/dev/null | tr -d ' ')
+case "$TTY" in
+  ttys*) TTY="/dev/$TTY"; CLIENT="cli" ;;
+  *)     TTY="-";         CLIENT="vscode" ;;
+esac
+CWD=$(json_field cwd)
+
 # Opt-in payload capture: `touch ~/.copilot-kb16-debug` to record what each
 # client actually sends. Different Copilot frontends (VS Code, CLI) do not
 # necessarily emit the same fields, and this is the quickest way to see it.
@@ -64,7 +78,10 @@ case "$SESSION_ID" in
       # Session is over: drop the file so the bridge frees its LED slot.
       rm -f "$SESSION_DIR/$SESSION_ID"
     else
-      printf '%s' "$STATUS" > "$SESSION_DIR/$SESSION_ID"
+      # Line 1 is the status, so older readers still work. Lines 2-4 tell the
+      # host where to focus when the matching key is pressed.
+      printf '%s\n%s\n%s\n%s\n' "$STATUS" "$TTY" "$CWD" "$CLIENT" \
+        > "$SESSION_DIR/$SESSION_ID"
     fi
     ;;
 esac
